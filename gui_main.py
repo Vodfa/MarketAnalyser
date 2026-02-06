@@ -10,6 +10,15 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 import logging
 
+
+# Garante resolução dos módulos locais quando executado como .exe (PyInstaller)
+if getattr(sys, 'frozen', False):
+    meipass = getattr(sys, '_MEIPASS', '')
+    exe_dir = os.path.dirname(sys.executable)
+    for candidate in (meipass, exe_dir):
+        if candidate and candidate not in sys.path:
+            sys.path.insert(0, candidate)
+
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QLineEdit, QTextEdit, QTabWidget,
