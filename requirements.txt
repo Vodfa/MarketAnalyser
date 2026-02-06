@@ -1,0 +1,30 @@
+# Market Analyzer - Requirements
+# Compatível com Python 3.8 - 3.13
+
+# Core dependencies
+setuptools>=75.0.0
+wheel>=0.45.0
+
+# GUI
+PyQt5>=5.15.11
+PyQtWebEngine>=5.15.7
+
+# Data Analysis
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Exchange connectivity
+ccxt>=4.4.0
+
+# Security
+cryptography>=43.0.0
+
+# HTTP
+requests>=2.32.0
+
+# Date/Time
+python-dateutil>=2.9.0
+
+# Build tools (optional, for compilation)
+pyinstaller>=6.11.0
+pillow>=11.0.0
