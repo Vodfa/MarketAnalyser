@@ -37,6 +37,7 @@ def build_exe():
         "--name", exe_name,
         "--onefile",
         "--windowed",
+        "--paths", str(current_dir),
         "--icon=icon.ico" if os.path.exists("icon.ico") else "",
         "--add-data", "README.md;.",
         "--hidden-import", "PyQt5",
