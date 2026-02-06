@@ -1,177 +1,238 @@
-# Market Analyzer - AI Trading Assistant
+Market Analyzer - AI Trading Assistant
+📊 Description
+Market Analyzer is an advanced financial market analysis program based on Freqtrade, featuring a modern graphical interface, built-in browser for automated trades, and a sophisticated time limit system.
 
-## 📊 Descrição
+✨ Features
+🎯 Market Analysis
+Advanced Technical Analysis: Based on Freqtrade indicators
 
-Market Analyzer é um programa avançado de análise de mercado financeiro baseado no **Freqtrade**, com interface gráfica moderna, navegador embutido para trades automáticos e sistema sofisticado de limite de tempo.
+Implemented Indicators:
 
-## ✨ Funcionalidades
+RSI (Relative Strength Index)
 
-### 🎯 Análise de Mercado
-- **Análise Técnica Avançada**: Baseada nos indicadores do Freqtrade
-- **Indicadores Implementados**:
-  - RSI (Relative Strength Index)
-  - MACD (Moving Average Convergence Divergence)
-  - Bollinger Bands
-  - EMA (Exponential Moving Average)
-  - SMA (Simple Moving Average)
-  - ADX (Average Directional Index)
-  - MFI (Money Flow Index)
-  - Stochastic Fast
-  - SAR (Parabolic SAR)
-  - TEMA (Triple Exponential Moving Average)
-  - ATR (Average True Range)
-  - OBV (On Balance Volume)
+MACD (Moving Average Convergence Divergence)
 
-- **Previsão de Direção**: UP, DOWN ou SIDEWAYS
-- **Nível de Confiança**: Percentual de confiança na previsão
-- **Análise Automática**: Configure intervalos personalizados
+Bollinger Bands
 
-### 🔧 Configurações
-- **Múltiplas Exchanges Suportadas**:
-  - Binance
-  - Coinbase
-  - Kraken
-  - Bitfinex
-  - Bybit
-  - OKX
-  - KuCoin
-  - Huobi
-  - Gate.io
-  - MEXC
+EMA (Exponential Moving Average)
 
-- **Gerenciamento Seguro de Credenciais**: API Keys criptografadas
-- **Mercados Favoritos**: Salve seus pares preferidos
-- **Múltiplos Timeframes**: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
+SMA (Simple Moving Average)
 
-### 🤖 Trading Automático
-- **Bot de Trading**: Executa trades baseado em sinais
-- **Stop Loss e Take Profit**: Gerenciamento automático de risco
-- **Múltiplos Trades Simultâneos**: Configure o número máximo
-- **Histórico de Trades**: Acompanhe todas as operações
+ADX (Average Directional Index)
 
-### 🌐 Navegador Embutido
-- **Acesso Direto**: TradingView, Binance, Coinbase
-- **Navegação Completa**: Voltar, avançar, atualizar
-- **URLs Personalizadas**: Acesse qualquer site
+MFI (Money Flow Index)
 
-### ⏰ Limite de Tempo Sofisticado
-- **Duração**: Defina tempo máximo de execução (horas, minutos, segundos)
-- **Horário Específico**: Pare em data/hora exata
-- **Período Diário**: Funcione apenas em horários específicos
-- **Desligamento Automático**: Encerra o programa quando o limite é atingido
+Stochastic Fast
 
-## 🚀 Instalação
+SAR (Parabolic SAR)
 
-### Requisitos
-- Windows 10/11 (64-bit)
-- 4GB RAM mínimo
-- Conexão com internet
+TEMA (Triple Exponential Moving Average)
 
-### Opção 1: Executável (.exe)
-1. Baixe o arquivo `MarketAnalyzer.exe`
-2. Execute o programa
-3. Configure suas preferências
+ATR (Average True Range)
 
-### Opção 2: Código Fonte
-1. Instale Python 3.8 ou superior
-2. Instale TA-Lib:
-   - Windows: Baixe wheel de https://www.lfd.uci.edu/~gohlke/pythonlibs/#ta-lib
-   - Linux: `sudo apt-get install ta-lib`
-   - Mac: `brew install ta-lib`
+OBV (On Balance Volume)
 
-3. Instale dependências:
-```bash
+Direction Prediction: UP, DOWN, or SIDEWAYS
+
+Confidence Level: Percentage confidence in the prediction
+
+Automatic Analysis: Set custom intervals
+
+🔧 Settings
+Multiple Exchanges Supported:
+
+Binance
+
+Coinbase
+
+Kraken
+
+Bitfinex
+
+Bybit
+
+OKX
+
+KuCoin
+
+Huobi
+
+Gate.io
+
+MEXC
+
+Secure Credential Management: Encrypted API Keys
+
+Favorite Markets: Save your preferred pairs
+
+Multiple Timeframes: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
+
+🤖 Automated Trading
+Trading Bot: Executes trades based on signals
+
+Stop Loss and Take Profit: Automatic risk management
+
+Multiple Simultaneous Trades: Set the maximum number
+
+Trade History: Track all operations
+
+🌐 Built-in Browser
+Direct Access: TradingView, Binance, Coinbase
+
+Full Navigation: Back, forward, refresh
+
+Custom URLs: Access any website
+
+⏰ Sophisticated Time Limit
+Duration: Set maximum execution time (hours, minutes, seconds)
+
+Specific Time: Stop at exact date/time
+
+Daily Period: Operate only during specific hours
+
+Automatic Shutdown: Closes the program when limit is reached
+
+🚀 Installation
+Requirements
+Windows 10/11 (64-bit)
+
+4GB RAM minimum
+
+Internet connection
+
+Option 1: Executable (.exe)
+Download the MarketAnalyzer.exe file
+
+Run the program
+
+Configure your preferences
+
+Option 2: Source Code
+Install Python 3.8 or higher
+
+Install TA-Lib:
+
+Windows: Download wheel from https://www.lfd.uci.edu/~gohlke/pythonlibs/#ta-lib
+
+Linux: sudo apt-get install ta-lib
+
+Mac: brew install ta-lib
+
+Install dependencies:
+
+bash
 pip install -r requirements.txt
-```
+Run the program:
 
-4. Execute o programa:
-```bash
+bash
 python gui_main.py
-```
+📖 How to Use
+1. Initial Setup
+Go to the Settings tab
 
-## 📖 Como Usar
+Select your preferred exchange
 
-### 1. Configuração Inicial
-1. Vá para a aba **Configurações**
-2. Selecione sua exchange preferida
-3. (Opcional) Insira suas API Keys para trading automático
-4. Adicione mercados favoritos
-5. Clique em **Salvar Configurações**
+(Optional) Enter your API Keys for automated trading
 
-### 2. Análise de Mercado
-1. Vá para a aba **Análise**
-2. Selecione um símbolo (ex: BTC/USDT)
-3. Escolha o timeframe
-4. Clique em **Analisar**
-5. Veja a previsão e nível de confiança
+Add favorite markets
 
-### 3. Análise Automática
-1. Marque **Análise Automática**
-2. Defina o intervalo (em segundos)
-3. O programa analisará automaticamente
+Click Save Settings
 
-### 4. Trading Automático (CUIDADO!)
-1. Configure suas API Keys
-2. Vá para a aba **Trading Automático**
-3. Marque **Habilitar Execução de Trades**
-4. Clique em **Iniciar Bot**
-5. Acompanhe os trades no log
+2. Market Analysis
+Go to the Analysis tab
 
-⚠️ **ATENÇÃO**: Trading automático executa operações REAIS! Use com cautela e apenas com fundos que você pode perder.
+Select a symbol (e.g., BTC/USDT)
 
-### 5. Limite de Tempo
-1. Vá para a aba **Limite de Tempo**
-2. Marque **Habilitar Limite de Tempo**
-3. Escolha o tipo:
-   - **Duração**: Ex: 2 horas e 30 minutos
-   - **Horário Específico**: Ex: parar às 18:00
-   - **Período Diário**: Ex: funcionar das 9:00 às 18:00
-4. Clique em **Aplicar Limite**
+Choose the timeframe
 
-## 🔒 Segurança
+Click Analyze
 
-- **Criptografia**: API Keys são criptografadas usando Fernet (AES)
-- **Armazenamento Local**: Credenciais ficam apenas no seu computador
-- **Sem Telemetria**: Nenhum dado é enviado para servidores externos
+View the prediction and confidence level
 
-## ⚠️ Avisos Importantes
+3. Automatic Analysis
+Check Automatic Analysis
 
-1. **Risco Financeiro**: Trading de criptomoedas envolve risco significativo de perda
-2. **Não é Conselho Financeiro**: Este software é apenas uma ferramenta de análise
-3. **Teste Primeiro**: Use modo simulação antes de trading real
-4. **API Keys**: Nunca compartilhe suas chaves de API
-5. **Responsabilidade**: Você é responsável por suas decisões de trading
+Set the interval (in seconds)
 
-## 🐛 Solução de Problemas
+The program will analyze automatically
 
-### Erro ao conectar com exchange
-- Verifique sua conexão com internet
-- Confirme se a exchange está online
-- Verifique suas API Keys
+4. Automated Trading (CAUTION!)
+Configure your API Keys
 
-### Erro ao instalar TA-Lib
-- Windows: Use wheel pré-compilado
-- Linux/Mac: Instale dependências do sistema primeiro
+Go to the Automated Trading tab
 
-### Programa não inicia
-- Verifique se todas as dependências estão instaladas
-- Execute como administrador (Windows)
-- Verifique logs em `~/.market_analyzer/`
+Check Enable Trade Execution
 
-## 📝 Licença
+Click Start Bot
 
-Este projeto é fornecido "como está", sem garantias de qualquer tipo.
+Monitor trades in the log
 
-## 🤝 Suporte
+⚠️ WARNING: Automated trading executes REAL operations! Use with caution and only with funds you can afford to lose.
 
-Para reportar bugs ou sugerir melhorias, crie uma issue no repositório.
+5. Time Limit
+Go to the Time Limit tab
 
-## 📚 Recursos Adicionais
+Check Enable Time Limit
 
-- [Documentação Freqtrade](https://www.freqtrade.io/)
-- [CCXT Documentation](https://docs.ccxt.com/)
-- [TA-Lib Indicators](https://mrjbq7.github.io/ta-lib/)
+Choose the type:
 
----
+Duration: E.g., 2 hours and 30 minutes
 
-**Desenvolvido com base no Freqtrade** 🚀
+Specific Time: E.g., stop at 6:00 PM
+
+Daily Period: E.g., operate from 9:00 AM to 6:00 PM
+
+Click Apply Limit
+
+🔒 Security
+Encryption: API Keys encrypted using Fernet (AES)
+
+Local Storage: Credentials stay only on your computer
+
+No Telemetry: No data sent to external servers
+
+⚠️ Important Warnings
+Financial Risk: Cryptocurrency trading involves significant risk of loss
+
+Not Financial Advice: This software is only an analysis tool
+
+Test First: Use simulation mode before real trading
+
+API Keys: Never share your API keys
+
+Responsibility: You are responsible for your trading decisions
+
+🐛 Troubleshooting
+Error connecting to exchange
+Check your internet connection
+
+Confirm the exchange is online
+
+Verify your API Keys
+
+Error installing TA-Lib
+Windows: Use pre-compiled wheel
+
+Linux/Mac: Install system dependencies first
+
+Program won't start
+Check if all dependencies are installed
+
+Run as administrator (Windows)
+
+Check logs in ~/.market_analyzer/
+
+📝 License
+This project is provided "as is," without any warranties.
+
+🤝 Support
+To report bugs or suggest improvements, create an issue in the repository.
+
+📚 Additional Resources
+Freqtrade Documentation
+
+CCXT Documentation
+
+TA-Lib Indicators
+
+Developed based on Freqtrade 🚀
