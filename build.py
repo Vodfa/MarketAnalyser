@@ -46,6 +46,10 @@ def build_exe():
         "--hidden-import", "pandas",
         "--hidden-import", "numpy",
         "--hidden-import", "cryptography",
+        "--hidden-import", "data_provider",
+        "--hidden-import", "market_analysis",
+        "--hidden-import", "config_manager",
+        "--hidden-import", "trading_bot",
         "--collect-all", "ccxt",
         "--collect-all", "talib",
         "gui_main.py"

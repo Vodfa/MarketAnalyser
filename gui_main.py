@@ -6,6 +6,7 @@ Interface gráfica principal do Market Analyzer
 import sys
 import os
 import json
+import importlib
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 import logging
@@ -21,10 +22,41 @@ from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QDateTime, QTime, QUrl
 from PyQt5.QtGui import QFont, QColor, QPalette
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 
-from data_provider import DataProvider
-from market_analysis import MarketAnalyzer
-from config_manager import ConfigManager
-from trading_bot import TradingBot
+def _prepare_import_paths():
+    """Garante que módulos locais sejam encontrados no ambiente frozen (.exe)."""
+    base_paths = []
+
+    # Caminho do executável gerado pelo PyInstaller (--onefile)
+    if getattr(sys, 'frozen', False):
+        base_paths.append(getattr(sys, '_MEIPASS', ''))
+        base_paths.append(os.path.dirname(sys.executable))
+
+    # Caminho do código-fonte (execução normal)
+    base_paths.append(os.path.dirname(os.path.abspath(__file__)))
+
+    for path in base_paths:
+        if path and path not in sys.path:
+            sys.path.insert(0, path)
+
+
+def _import_local_module(module_name, class_name):
+    """Importa módulos locais com mensagem de erro mais clara."""
+    try:
+        module = importlib.import_module(module_name)
+        return getattr(module, class_name)
+    except Exception as exc:
+        raise ImportError(
+            f"Não foi possível importar '{class_name}' do módulo '{module_name}'. "
+            "Se estiver executando o .exe, recompile incluindo os módulos locais."
+        ) from exc
+
+
+_prepare_import_paths()
+
+DataProvider = _import_local_module('data_provider', 'DataProvider')
+MarketAnalyzer = _import_local_module('market_analysis', 'MarketAnalyzer')
+ConfigManager = _import_local_module('config_manager', 'ConfigManager')
+TradingBot = _import_local_module('trading_bot', 'TradingBot')
 
 # Configurar logging
 logging.basicConfig(
