@@ -37,6 +37,7 @@ def build_exe():
         "--name", exe_name,
         "--onefile",
         "--windowed",
+        "--paths", str(current_dir),
         "--icon=icon.ico" if os.path.exists("icon.ico") else "",
         "--add-data", "README.md;.",
         "--hidden-import", "PyQt5",
@@ -46,6 +47,10 @@ def build_exe():
         "--hidden-import", "pandas",
         "--hidden-import", "numpy",
         "--hidden-import", "cryptography",
+        "--hidden-import", "data_provider",
+        "--hidden-import", "market_analysis",
+        "--hidden-import", "config_manager",
+        "--hidden-import", "trading_bot",
         "--collect-all", "ccxt",
         "--collect-all", "talib",
         "gui_main.py"
