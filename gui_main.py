@@ -23,14 +23,14 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QLineEdit, QTextEdit, QTabWidget,
     QTableWidget, QTableWidgetItem, QGroupBox, QCheckBox, QSpinBox,
-    QMessageBox, QProgressBar, QListWidget, QSplitter, QFrame,
+    QMessageBox, QProgressBar, QListWidget, QListWidgetItem, QSplitter, QFrame,
     QDateTimeEdit, QTimeEdit
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QDateTime, QTime, QUrl
 from PyQt5.QtGui import QFont, QColor, QPalette
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 
-from data_provider import DataProvider
+from data_provider import DataProvider, ASSET_TYPE_CRYPTO, ASSET_TYPE_STOCK, ASSET_TYPE_FOREX
 from market_analysis import MarketAnalyzer
 from config_manager import ConfigManager
 from trading_bot import TradingBot
@@ -58,27 +58,24 @@ class AnalysisThread(QThread):
         self.running = True
     
     def run(self):
-        """Executa análise"""
+        """Executa análise (funciona para crypto, ações e forex em paralelo ao bot)."""
         try:
-            # Obtém dados
+            asset_type = DataProvider.detect_asset_type(self.symbol)
             df = self.data_provider.get_ohlcv_data(
-                self.symbol, 
-                self.timeframe, 
-                limit=500
+                self.symbol,
+                self.timeframe,
+                limit=500,
+                asset_type=asset_type,
             )
             
             if df is None or len(df) == 0:
                 self.error_occurred.emit(f"Não foi possível obter dados para {self.symbol}")
                 return
             
-            # Adiciona indicadores
             df = self.analyzer.populate_indicators(df)
-            
-            # Gera previsão
             prediction = self.analyzer.predict_direction(df)
             
-            # Adiciona dados do ticker
-            ticker = self.data_provider.get_ticker(self.symbol)
+            ticker = self.data_provider.get_ticker(self.symbol, asset_type=asset_type)
             if ticker:
                 prediction['ticker'] = ticker
             
@@ -96,6 +93,8 @@ class AnalysisThread(QThread):
 class MarketAnalyzerGUI(QMainWindow):
     """Interface gráfica principal do Market Analyzer"""
     
+    trade_signal_received = pyqtSignal(dict)
+    
     def __init__(self):
         super().__init__()
         
@@ -104,6 +103,9 @@ class MarketAnalyzerGUI(QMainWindow):
         self.analyzer = MarketAnalyzer()
         self.trading_bot = None
         self.analysis_thread = None
+        # Ordens pendentes para execução no navegador (lista de dict)
+        self.pending_browser_orders = []
+        self.last_ai_order = None  # Última ordem recebida da IA (para painel no navegador)
         
         # Timer para análise automática
         self.auto_analysis_timer = QTimer()
@@ -119,6 +121,7 @@ class MarketAnalyzerGUI(QMainWindow):
         self.time_limit_end = None
         
         self.init_ui()
+        self.trade_signal_received.connect(self.on_trade_signal_from_bot)
         self.load_config()
     
     def init_ui(self):
@@ -312,6 +315,44 @@ class MarketAnalyzerGUI(QMainWindow):
         markets_group.setLayout(markets_layout)
         layout.addWidget(markets_group)
         
+        # Ações (Yahoo Finance)
+        stocks_group = QGroupBox("Ações (Yahoo Finance)")
+        stocks_layout = QVBoxLayout()
+        self.stocks_list = QListWidget()
+        stocks_layout.addWidget(self.stocks_list)
+        stocks_btn = QHBoxLayout()
+        self.stock_input = QLineEdit()
+        self.stock_input.setPlaceholderText("Ex: AAPL, MSFT")
+        stocks_btn.addWidget(self.stock_input)
+        add_stock_btn = QPushButton("Adicionar ação")
+        add_stock_btn.clicked.connect(self.add_stock_symbol)
+        stocks_btn.addWidget(add_stock_btn)
+        remove_stock_btn = QPushButton("Remover")
+        remove_stock_btn.clicked.connect(self.remove_stock_symbol)
+        stocks_btn.addWidget(remove_stock_btn)
+        stocks_layout.addLayout(stocks_btn)
+        stocks_group.setLayout(stocks_layout)
+        layout.addWidget(stocks_group)
+        
+        # Pares Forex
+        forex_group = QGroupBox("Pares Forex")
+        forex_layout = QVBoxLayout()
+        self.forex_list = QListWidget()
+        forex_layout.addWidget(self.forex_list)
+        forex_btn = QHBoxLayout()
+        self.forex_input = QLineEdit()
+        self.forex_input.setPlaceholderText("Ex: EUR/USD, GBP/USD")
+        forex_btn.addWidget(self.forex_input)
+        add_forex_btn = QPushButton("Adicionar par")
+        add_forex_btn.clicked.connect(self.add_forex_pair)
+        forex_btn.addWidget(add_forex_btn)
+        remove_forex_btn = QPushButton("Remover")
+        remove_forex_btn.clicked.connect(self.remove_forex_pair)
+        forex_btn.addWidget(remove_forex_btn)
+        forex_layout.addLayout(forex_btn)
+        forex_group.setLayout(forex_layout)
+        layout.addWidget(forex_group)
+        
         # Botões de ação
         btn_layout = QHBoxLayout()
         
@@ -371,8 +412,36 @@ class MarketAnalyzerGUI(QMainWindow):
         self.enable_trading_check = QCheckBox("Habilitar Execução de Trades (CUIDADO!)")
         controls_layout.addWidget(self.enable_trading_check)
         
+        self.execute_via_browser_check = QCheckBox("Executar trades pelo navegador (IA opera no navegador)")
+        controls_layout.addWidget(self.execute_via_browser_check)
+        
         controls_group.setLayout(controls_layout)
         layout.addWidget(controls_group)
+        
+        # Ativos em que o autotrade pode investir (marcar/desmarcar para incluir no bot)
+        autotrade_group = QGroupBox("Em quais ativos o Autotrade pode investir")
+        autotrade_layout = QVBoxLayout()
+        autotrade_layout.addWidget(QLabel("Marque os ativos que o bot pode operar (desmarque para excluir):"))
+        self.autotrade_assets_list = QListWidget()
+        self.autotrade_assets_list.setMaximumHeight(180)
+        autotrade_layout.addWidget(self.autotrade_assets_list)
+        refresh_autotrade_btn = QPushButton("Atualizar lista (a partir das Configurações)")
+        refresh_autotrade_btn.clicked.connect(self.refresh_autotrade_list)
+        autotrade_layout.addWidget(refresh_autotrade_btn)
+        autotrade_group.setLayout(autotrade_layout)
+        layout.addWidget(autotrade_group)
+        
+        # Ordens pendentes para o navegador
+        pending_group = QGroupBox("Ordens da IA para o Navegador")
+        pending_layout = QVBoxLayout()
+        self.pending_orders_list = QListWidget()
+        self.pending_orders_list.setMaximumHeight(120)
+        pending_layout.addWidget(self.pending_orders_list)
+        open_browser_btn = QPushButton("Abrir ordem selecionada no navegador")
+        open_browser_btn.clicked.connect(self.open_pending_order_in_browser)
+        pending_layout.addWidget(open_browser_btn)
+        pending_group.setLayout(pending_layout)
+        layout.addWidget(pending_group)
         
         # Log de trades
         trades_group = QGroupBox("Histórico de Trades")
@@ -458,6 +527,25 @@ class MarketAnalyzerGUI(QMainWindow):
         
         quick_links_layout.addStretch()
         layout.addLayout(quick_links_layout)
+        
+        # Painel: Ordem da IA - executar no navegador
+        ai_order_group = QGroupBox("Ordem sugerida pela IA – executar no navegador")
+        ai_order_layout = QVBoxLayout()
+        self.ai_order_label = QLabel("Nenhuma ordem pendente.")
+        self.ai_order_label.setWordWrap(True)
+        ai_order_layout.addWidget(self.ai_order_label)
+        ai_btn_layout = QHBoxLayout()
+        self.ai_open_page_btn = QPushButton("Abrir página de trade")
+        self.ai_open_page_btn.clicked.connect(self.open_ai_order_in_browser)
+        self.ai_open_page_btn.setEnabled(False)
+        ai_btn_layout.addWidget(self.ai_open_page_btn)
+        self.ai_inject_btn = QPushButton("Preencher no site (Binance – experimental)")
+        self.ai_inject_btn.clicked.connect(self.inject_order_into_browser)
+        self.ai_inject_btn.setEnabled(False)
+        ai_btn_layout.addWidget(self.ai_inject_btn)
+        ai_order_layout.addLayout(ai_btn_layout)
+        ai_order_group.setLayout(ai_order_layout)
+        layout.addWidget(ai_order_group)
         
         self.tabs.addTab(tab, "Navegador")
     
@@ -624,6 +712,16 @@ class MarketAnalyzerGUI(QMainWindow):
             self.markets_list.clear()
             self.markets_list.addItems(favorites)
             
+            # Ações e Forex
+            self.stocks_list.clear()
+            self.stocks_list.addItems(config.get('stock_symbols', []))
+            self.forex_list.clear()
+            self.forex_list.addItems(config.get('forex_pairs', []))
+            
+            self.execute_via_browser_check.setChecked(config.get('execute_via_browser', False))
+            
+            self.refresh_autotrade_list()
+            
             # Inicializa data provider
             self.init_data_provider()
             
@@ -636,7 +734,6 @@ class MarketAnalyzerGUI(QMainWindow):
     def save_config(self):
         """Salva configurações"""
         try:
-            # Obtém exchange ID
             exchange_name = self.exchange_combo.currentText()
             exchange_id = None
             for eid, ename in DataProvider.get_supported_exchanges().items():
@@ -644,7 +741,8 @@ class MarketAnalyzerGUI(QMainWindow):
                     exchange_id = eid
                     break
             
-            config = {
+            config = self.config_manager.load_config()
+            config.update({
                 'exchange': exchange_name,
                 'exchange_id': exchange_id or 'binance',
                 'api_key': self.api_key_input.text(),
@@ -652,8 +750,11 @@ class MarketAnalyzerGUI(QMainWindow):
                 'favorite_markets': [
                     self.markets_list.item(i).text() 
                     for i in range(self.markets_list.count())
-                ]
-            }
+                ],
+                'stock_symbols': [self.stocks_list.item(i).text() for i in range(self.stocks_list.count())],
+                'forex_pairs': [self.forex_list.item(i).text() for i in range(self.forex_list.count())],
+                'execute_via_browser': self.execute_via_browser_check.isChecked(),
+            })
             
             self.config_manager.save_config(config)
             
@@ -757,6 +858,68 @@ class MarketAnalyzerGUI(QMainWindow):
             symbol = current_item.text()
             self.markets_list.takeItem(self.markets_list.row(current_item))
             self.log(f"Removido dos favoritos: {symbol}")
+    
+    def add_stock_symbol(self):
+        """Adiciona ação à lista"""
+        text = self.stock_input.text().strip().upper()
+        if text and not self.stocks_list.findItems(text, Qt.MatchExactly):
+            self.stocks_list.addItem(text)
+            self.stock_input.clear()
+            self.log(f"Ação adicionada: {text}")
+    
+    def remove_stock_symbol(self):
+        """Remove ação da lista"""
+        current = self.stocks_list.currentItem()
+        if current:
+            self.stocks_list.takeItem(self.stocks_list.row(current))
+            self.log(f"Ação removida: {current.text()}")
+    
+    def add_forex_pair(self):
+        """Adiciona par forex à lista"""
+        text = self.forex_input.text().strip().upper().replace(' ', '')
+        if text and '/' in text and not self.forex_list.findItems(text, Qt.MatchExactly):
+            self.forex_list.addItem(text)
+            self.forex_input.clear()
+            self.log(f"Forex adicionado: {text}")
+    
+    def remove_forex_pair(self):
+        """Remove par forex da lista"""
+        current = self.forex_list.currentItem()
+        if current:
+            self.forex_list.takeItem(self.forex_list.row(current))
+            self.log(f"Forex removido: {current.text()}")
+    
+    def refresh_autotrade_list(self):
+        """Atualiza a lista de ativos do autotrade a partir das configurações (crypto, ações, forex)."""
+        try:
+            config = self.config_manager.load_config()
+            crypto_list = config.get('favorite_markets', [])
+            stocks_list = config.get('stock_symbols', [])
+            forex_list = config.get('forex_pairs', [])
+            autotrade_crypto = set(config.get('autotrade_crypto', []))
+            autotrade_stocks = set(config.get('autotrade_stocks', []))
+            autotrade_forex = set(config.get('autotrade_forex', []))
+            self.autotrade_assets_list.clear()
+            for symbol in crypto_list:
+                item = QListWidgetItem(symbol)
+                item.setData(Qt.UserRole, ASSET_TYPE_CRYPTO)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked if (not autotrade_crypto or symbol in autotrade_crypto) else Qt.Unchecked)
+                self.autotrade_assets_list.addItem(item)
+            for symbol in stocks_list:
+                item = QListWidgetItem(symbol)
+                item.setData(Qt.UserRole, ASSET_TYPE_STOCK)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked if (not autotrade_stocks or symbol in autotrade_stocks) else Qt.Unchecked)
+                self.autotrade_assets_list.addItem(item)
+            for symbol in forex_list:
+                item = QListWidgetItem(symbol)
+                item.setData(Qt.UserRole, ASSET_TYPE_FOREX)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked if (not autotrade_forex or symbol in autotrade_forex) else Qt.Unchecked)
+                self.autotrade_assets_list.addItem(item)
+        except Exception as e:
+            logger.error(f"Erro ao atualizar lista do autotrade: {e}")
     
     def run_analysis(self):
         """Executa análise de mercado"""
@@ -865,6 +1028,110 @@ Timestamp: {prediction.get('timestamp', '')}
             self.auto_analysis_timer.stop()
             self.log("Análise automática desativada")
     
+    def on_trade_signal_from_bot(self, order_dict: dict):
+        """Chamado quando o bot emite sinal de trade para execução no navegador."""
+        self.pending_browser_orders.append(order_dict)
+        side = order_dict.get('side', '').upper()
+        symbol = order_dict.get('symbol', '')
+        amount = order_dict.get('amount', 0)
+        price = order_dict.get('price', 0)
+        text = f"{side} {symbol} | Qtd: {amount:.6f} @ {price:.2f}"
+        self.pending_orders_list.addItem(text)
+        self.last_ai_order = order_dict
+        self.ai_order_label.setText(
+            f"{side} {symbol} | Quantidade: {amount:.6f} | Preço: {price:.2f} | "
+            f"Stop: {order_dict.get('stop_loss', '-')} | Alvo: {order_dict.get('take_profit', '-')}"
+        )
+        self.ai_open_page_btn.setEnabled(True)
+        self.ai_inject_btn.setEnabled(True)
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Navegador":
+                self.tabs.setCurrentIndex(i)
+                break
+        url = self.get_trade_url(order_dict)
+        if url:
+            self.browser.setUrl(QUrl(url))
+        self.log(f"Ordem da IA para navegador: {text}")
+    
+    def get_trade_url(self, order_dict: dict) -> str:
+        """Gera URL da página de trade conforme exchange e tipo de ativo."""
+        symbol = order_dict.get('symbol', '')
+        asset_type = order_dict.get('asset_type', ASSET_TYPE_CRYPTO)
+        config = self.config_manager.load_config()
+        exchange_id = (config.get('exchange_id') or 'binance').lower()
+        
+        if asset_type == ASSET_TYPE_CRYPTO:
+            # Binance: https://www.binance.com/en/trade/BTC_USDT
+            pair = symbol.replace('/', '_')
+            if 'binance' in exchange_id:
+                return f"https://www.binance.com/en/trade/{pair}"
+            if exchange_id == 'binanceusdm':
+                return f"https://www.binance.com/en/futures/{pair}"
+            if 'bybit' in exchange_id:
+                return f"https://www.bybit.com/trade/usdt/{pair}"
+            if 'okx' in exchange_id:
+                return f"https://www.okx.com/trade-spot/{symbol.lower()}"
+            if 'kraken' in exchange_id:
+                return f"https://www.kraken.com/charts"
+            return f"https://www.binance.com/en/trade/{pair}"
+        
+        if asset_type == ASSET_TYPE_STOCK:
+            return f"https://www.tradingview.com/chart/?symbol={symbol}"
+        if asset_type == ASSET_TYPE_FOREX:
+            pair = symbol.replace('/', '')
+            return f"https://www.tradingview.com/chart/?symbol=FX%3A{pair}"
+        return ""
+    
+    def open_pending_order_in_browser(self):
+        """Abre a ordem selecionada na lista no navegador."""
+        row = self.pending_orders_list.currentRow()
+        if row < 0 or row >= len(self.pending_browser_orders):
+            return
+        order = self.pending_browser_orders[row]
+        url = self.get_trade_url(order)
+        if url:
+            for i in range(self.tabs.count()):
+                if self.tabs.tabText(i) == "Navegador":
+                    self.tabs.setCurrentIndex(i)
+                    break
+            self.browser.setUrl(QUrl(url))
+    
+    def open_ai_order_in_browser(self):
+        """Abre a última ordem da IA no navegador."""
+        if not self.last_ai_order:
+            return
+        url = self.get_trade_url(self.last_ai_order)
+        if url:
+            for i in range(self.tabs.count()):
+                if self.tabs.tabText(i) == "Navegador":
+                    self.tabs.setCurrentIndex(i)
+                    break
+            self.browser.setUrl(QUrl(url))
+    
+    def inject_order_into_browser(self):
+        """Tenta preencher formulário de ordem na página (Binance – experimental)."""
+        order = self.last_ai_order
+        if not order:
+            return
+        symbol = order.get('symbol', '').replace('/', '')
+        amount = order.get('amount', 0)
+        # JavaScript para tentar definir símbolo e quantidade na Binance (estrutura pode mudar)
+        js = f"""
+        (function() {{
+            var sym = '{symbol}';
+            var amt = {amount};
+            var inputs = document.querySelectorAll('input[type="text"], input[placeholder*="Amount"], input[placeholder*="Quantidade"]');
+            for (var i = 0; i < inputs.length; i++) {{
+                if (inputs[i].placeholder && (inputs[i].placeholder.toLowerCase().indexOf('amount') >= 0 || inputs[i].placeholder.toLowerCase().indexOf('quantidade') >= 0)) {{
+                    inputs[i].value = amt;
+                    inputs[i].dispatchEvent(new Event('input', {{ bubbles: true }}));
+                }}
+            }}
+            return 'Tentativa de preenchimento: ' + sym + ' qtd ' + amt;
+        }})();
+        """
+        self.browser.page().runJavaScript(js, lambda result: self.log(f"Inject: {result}" if result else "JS executado"))
+    
     def start_trading_bot(self):
         """Inicia o bot de trading"""
         try:
@@ -886,12 +1153,38 @@ Timestamp: {prediction.get('timestamp', '')}
             if reply == QMessageBox.No:
                 return
             
-            # Inicializa trading bot
+            # Coleta ativos marcados para o autotrade e persiste na config
+            autotrade_crypto = []
+            autotrade_stocks = []
+            autotrade_forex = []
+            for i in range(self.autotrade_assets_list.count()):
+                item = self.autotrade_assets_list.item(i)
+                if item.checkState() != Qt.Checked:
+                    continue
+                atype = item.data(Qt.UserRole)
+                symbol = item.text()
+                if atype == ASSET_TYPE_CRYPTO:
+                    autotrade_crypto.append(symbol)
+                elif atype == ASSET_TYPE_STOCK:
+                    autotrade_stocks.append(symbol)
+                elif atype == ASSET_TYPE_FOREX:
+                    autotrade_forex.append(symbol)
+            
             config = self.config_manager.load_config()
+            config['execute_via_browser'] = self.execute_via_browser_check.isChecked()
+            config['autotrade_crypto'] = autotrade_crypto
+            config['autotrade_stocks'] = autotrade_stocks
+            config['autotrade_forex'] = autotrade_forex
+            config['stock_symbols'] = config.get('stock_symbols', [])
+            config['forex_pairs'] = config.get('forex_pairs', [])
+            config['check_interval'] = config.get('check_interval', 60)
+            self.config_manager.save_config(config)
+            
             self.trading_bot = TradingBot(
                 data_provider=self.data_provider,
                 analyzer=self.analyzer,
-                config=config
+                config=config,
+                on_trade_signal=lambda d: self.trade_signal_received.emit(d),
             )
             
             self.trading_bot.start()

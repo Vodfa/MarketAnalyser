@@ -148,13 +148,17 @@ class ConfigManager:
                 'SOL/USDT',
                 'XRP/USDT'
             ],
+            'stock_symbols': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META'],
+            'forex_pairs': ['EUR/USD', 'GBP/USD', 'USD/JPY'],
             'default_timeframe': '5m',
             'auto_analysis_interval': 60,
             'enable_trading': False,
-            'max_trades': 3,
+            'execute_via_browser': False,
+            'max_trades': 5,
             'trade_amount': 100,
             'stop_loss_percent': 2.0,
-            'take_profit_percent': 5.0
+            'take_profit_percent': 5.0,
+            'check_interval': 60,
         }
     
     def get_config_value(self, key: str, default: Any = None) -> Any:

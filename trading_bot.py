@@ -1,36 +1,77 @@
 """
 Trading Bot Module
-Bot de trading automático baseado em sinais de análise
+Bot de trading automático baseado em sinais de análise.
+Suporta múltiplos ativos: criptomoedas, ações e forex.
+Pode executar trades via API (simulado) ou via navegador integrado.
 """
 
 import logging
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Callable, Any
 from datetime import datetime, timedelta
 import time
 from threading import Thread, Event
 import pandas as pd
 
+from data_provider import (
+    DataProvider,
+    ASSET_TYPE_CRYPTO,
+    ASSET_TYPE_STOCK,
+    ASSET_TYPE_FOREX,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _build_symbol_list(config: Dict) -> List[tuple]:
+    """Constrói lista (symbol, asset_type) a partir da config.
+    Usa autotrade_crypto, autotrade_stocks, autotrade_forex quando presentes na config
+    (podem ser listas vazias = nenhum ativo); senão usa favorite_markets, stock_symbols, forex_pairs.
+    """
+    if 'autotrade_crypto' in config:
+        crypto = config['autotrade_crypto']
+    else:
+        crypto = config.get('favorite_markets', [])
+    if 'autotrade_stocks' in config:
+        stocks = config['autotrade_stocks']
+    else:
+        stocks = config.get('stock_symbols', [])
+    if 'autotrade_forex' in config:
+        forex = config['autotrade_forex']
+    else:
+        forex = config.get('forex_pairs', [])
+
+    out = []
+    for s in crypto:
+        out.append((s, ASSET_TYPE_CRYPTO))
+    for s in stocks:
+        out.append((s, ASSET_TYPE_STOCK))
+    for s in forex:
+        out.append((s, ASSET_TYPE_FOREX))
+    return out
 
 
 class TradingBot:
     """
-    Bot de trading automático
-    Executa trades baseado em sinais da análise técnica
+    Bot de trading automático.
+    Executa trades baseado em sinais da análise técnica.
+    Suporta crypto, ações e forex; execução via API ou navegador.
     """
     
-    def __init__(self, data_provider, analyzer, config: Dict):
+    def __init__(self, data_provider, analyzer, config: Dict, on_trade_signal: Callable[[Dict], None] = None):
         """
-        Inicializa o trading bot
+        Inicializa o trading bot.
         
         Args:
             data_provider: Provedor de dados de mercado
             analyzer: Analisador de mercado
             config: Configurações do bot
+            on_trade_signal: Callback chamado quando há sinal para executar trade (ex.: para abrir no navegador).
+                             Recebe dict: symbol, side, amount, price, asset_type, stop_loss, take_profit, details.
         """
         self.data_provider = data_provider
         self.analyzer = analyzer
         self.config = config
+        self.on_trade_signal = on_trade_signal or (lambda _: None)
         
         self.running = False
         self.thread = None
@@ -39,17 +80,22 @@ class TradingBot:
         self.active_trades = {}
         self.trade_history = []
         
-        # Configurações
-        self.max_trades = config.get('max_trades', 3)
+        self.max_trades = config.get('max_trades', 5)
         self.trade_amount = config.get('trade_amount', 100)
         self.stop_loss_percent = config.get('stop_loss_percent', 2.0)
         self.take_profit_percent = config.get('take_profit_percent', 5.0)
-        self.check_interval = config.get('check_interval', 60)  # segundos
+        self.check_interval = config.get('check_interval', 60)
+        self.execute_via_browser = config.get('execute_via_browser', False)
         
-        self.symbols = config.get('favorite_markets', ['BTC/USDT'])
+        self.symbols_with_type = _build_symbol_list(config)
         self.timeframe = config.get('default_timeframe', '5m')
         
-        logger.info("Trading bot inicializado")
+        logger.info(
+            "Trading bot inicializado (crypto=%d, stocks=%d, forex=%d)",
+            sum(1 for _, t in self.symbols_with_type if t == ASSET_TYPE_CRYPTO),
+            sum(1 for _, t in self.symbols_with_type if t == ASSET_TYPE_STOCK),
+            sum(1 for _, t in self.symbols_with_type if t == ASSET_TYPE_FOREX),
+        )
     
     def start(self):
         """Inicia o bot"""
@@ -101,83 +147,86 @@ class TradingBot:
         logger.info("Loop do trading bot encerrado")
     
     def _scan_opportunities(self):
-        """Escaneia mercados em busca de oportunidades"""
+        """Escaneia todos os ativos configurados (crypto, ações, forex) em busca de oportunidades."""
         logger.info("Escaneando oportunidades de trade...")
         
-        for symbol in self.symbols:
+        for symbol, asset_type in self.symbols_with_type:
             try:
-                # Já tem trade ativo neste símbolo?
                 if symbol in self.active_trades:
                     continue
                 
-                # Obtém dados
                 df = self.data_provider.get_ohlcv_data(
                     symbol,
                     self.timeframe,
-                    limit=500
+                    limit=500,
+                    asset_type=asset_type,
                 )
                 
                 if df is None or len(df) == 0:
                     continue
                 
-                # Analisa
                 df = self.analyzer.populate_indicators(df)
                 signal, strength, details = self.analyzer.generate_signals(df)
                 
-                # Verifica se é um sinal forte de compra
-                if signal == 1 and strength >= 0.6:  # 60% de confiança mínima
-                    self._execute_buy(symbol, df, strength, details)
+                if signal == 1 and strength >= 0.6:
+                    self._execute_buy(symbol, asset_type, df, strength, details)
                 
             except Exception as e:
                 logger.error(f"Erro ao escanear {symbol}: {e}")
     
-    def _execute_buy(self, symbol: str, df: pd.DataFrame, strength: float, details: Dict):
+    def _execute_buy(self, symbol: str, asset_type: str, df: pd.DataFrame, strength: float, details: Dict):
         """
-        Executa ordem de compra
-        
-        Args:
-            symbol: Símbolo do par
-            df: DataFrame com dados
-            strength: Força do sinal
-            details: Detalhes da análise
+        Executa ordem de compra (simulada ou sinal para execução via navegador).
         """
         try:
             current_price = float(df.iloc[-1]['close'])
+            amount = self.trade_amount / current_price if current_price else 0
             
-            # Calcula stop loss e take profit
             stop_loss = current_price * (1 - self.stop_loss_percent / 100)
             take_profit = current_price * (1 + self.take_profit_percent / 100)
             
-            # Simula ordem (em produção, usaria self.data_provider.exchange.create_order)
             order = {
                 'symbol': symbol,
+                'asset_type': asset_type,
                 'side': 'buy',
                 'type': 'market',
-                'amount': self.trade_amount / current_price,
+                'amount': amount,
                 'price': current_price,
                 'stop_loss': stop_loss,
                 'take_profit': take_profit,
                 'timestamp': datetime.now(),
                 'signal_strength': strength,
                 'details': details,
-                'status': 'open'
+                'status': 'open',
             }
             
-            # Adiciona aos trades ativos
             self.active_trades[symbol] = order
             
-            logger.info(f"COMPRA executada: {symbol} @ ${current_price:.2f} (força: {strength:.2%})")
-            logger.info(f"Stop Loss: ${stop_loss:.2f} | Take Profit: ${take_profit:.2f}")
+            logger.info(f"COMPRA: {symbol} ({asset_type}) @ {current_price:.2f} (força: {strength:.2%})")
+            logger.info(f"Stop Loss: {stop_loss:.2f} | Take Profit: {take_profit:.2f}")
             
-            # Adiciona ao histórico
             self.trade_history.append({
                 'action': 'BUY',
                 'timestamp': datetime.now(),
                 'symbol': symbol,
+                'asset_type': asset_type,
                 'price': current_price,
-                'amount': order['amount'],
-                'strength': strength
+                'amount': amount,
+                'strength': strength,
             })
+            
+            # Se execução via navegador, notifica a GUI para abrir no navegador
+            if self.execute_via_browser:
+                self.on_trade_signal({
+                    'symbol': symbol,
+                    'asset_type': asset_type,
+                    'side': 'buy',
+                    'amount': amount,
+                    'price': current_price,
+                    'stop_loss': stop_loss,
+                    'take_profit': take_profit,
+                    'details': details,
+                })
             
         except Exception as e:
             logger.error(f"Erro ao executar compra de {symbol}: {e}")
@@ -193,9 +242,9 @@ class TradingBot:
         
         for symbol, trade in self.active_trades.items():
             try:
-                # Obtém preço atual
-                ticker = self.data_provider.get_ticker(symbol)
-                if not ticker:
+                asset_type = trade.get('asset_type', ASSET_TYPE_CRYPTO)
+                ticker = self.data_provider.get_ticker(symbol, asset_type=asset_type)
+                if not ticker or ticker.get('last') is None:
                     continue
                 
                 current_price = ticker['last']
@@ -211,26 +260,27 @@ class TradingBot:
                 # Verifica stop loss
                 if current_price <= stop_loss:
                     logger.warning(f"STOP LOSS ativado para {symbol}!")
-                    self._execute_sell(symbol, current_price, 'STOP_LOSS')
+                    self._execute_sell(symbol, asset_type, current_price, 'STOP_LOSS')
                     symbols_to_close.append(symbol)
                 
                 # Verifica take profit
                 elif current_price >= take_profit:
                     logger.info(f"TAKE PROFIT atingido para {symbol}!")
-                    self._execute_sell(symbol, current_price, 'TAKE_PROFIT')
+                    self._execute_sell(symbol, asset_type, current_price, 'TAKE_PROFIT')
                     symbols_to_close.append(symbol)
                 
                 # Verifica sinais de saída
                 else:
-                    df = self.data_provider.get_ohlcv_data(symbol, self.timeframe, limit=500)
+                    df = self.data_provider.get_ohlcv_data(
+                        symbol, self.timeframe, limit=500, asset_type=asset_type
+                    )
                     if df is not None and len(df) > 0:
                         df = self.analyzer.populate_indicators(df)
                         signal, strength, details = self.analyzer.generate_signals(df)
                         
-                        # Sinal forte de venda
                         if signal == -1 and strength >= 0.6:
                             logger.info(f"Sinal de VENDA detectado para {symbol}")
-                            self._execute_sell(symbol, current_price, 'SIGNAL')
+                            self._execute_sell(symbol, asset_type, current_price, 'SIGNAL')
                             symbols_to_close.append(symbol)
                 
             except Exception as e:
@@ -240,38 +290,41 @@ class TradingBot:
         for symbol in symbols_to_close:
             del self.active_trades[symbol]
     
-    def _execute_sell(self, symbol: str, price: float, reason: str):
-        """
-        Executa ordem de venda
-        
-        Args:
-            symbol: Símbolo do par
-            price: Preço de venda
-            reason: Motivo da venda
-        """
+    def _execute_sell(self, symbol: str, asset_type: str, price: float, reason: str):
+        """Executa ordem de venda (registro e, se browser, sinal para GUI)."""
         try:
             trade = self.active_trades[symbol]
             entry_price = trade['price']
             amount = trade['amount']
             
-            # Calcula resultado
             pnl = (price - entry_price) * amount
             pnl_percent = ((price - entry_price) / entry_price) * 100
             
-            logger.info(f"VENDA executada: {symbol} @ ${price:.2f} ({reason})")
-            logger.info(f"P&L: ${pnl:.2f} ({pnl_percent:+.2f}%)")
+            logger.info(f"VENDA: {symbol} @ {price:.2f} ({reason}) | P&L: {pnl:.2f} ({pnl_percent:+.2f}%)")
             
-            # Adiciona ao histórico
             self.trade_history.append({
                 'action': 'SELL',
                 'timestamp': datetime.now(),
                 'symbol': symbol,
+                'asset_type': asset_type,
                 'price': price,
                 'amount': amount,
                 'reason': reason,
                 'pnl': pnl,
-                'pnl_percent': pnl_percent
+                'pnl_percent': pnl_percent,
             })
+            
+            if self.execute_via_browser:
+                self.on_trade_signal({
+                    'symbol': symbol,
+                    'asset_type': asset_type,
+                    'side': 'sell',
+                    'amount': amount,
+                    'price': price,
+                    'reason': reason,
+                    'pnl': pnl,
+                    'pnl_percent': pnl_percent,
+                })
             
         except Exception as e:
             logger.error(f"Erro ao executar venda de {symbol}: {e}")
