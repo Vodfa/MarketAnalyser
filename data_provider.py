@@ -21,6 +21,7 @@ class DataProvider:
     
     SUPPORTED_EXCHANGES = {
         'binance': 'Binance',
+        'binanceusdm': 'Binance Futures (USDT-M)',
         'coinbase': 'Coinbase',
         'kraken': 'Kraken',
         'bitfinex': 'Bitfinex',
@@ -28,8 +29,16 @@ class DataProvider:
         'okx': 'OKX',
         'kucoin': 'KuCoin',
         'huobi': 'Huobi',
+        'htx': 'HTX (ex-Huobi)',
         'gateio': 'Gate.io',
-        'mexc': 'MEXC'
+        'mexc': 'MEXC',
+        'bitstamp': 'Bitstamp',
+        'gemini': 'Gemini',
+        'bitget': 'Bitget',
+        'bitmart': 'BitMart',
+        'cryptocom': 'Crypto.com',
+        'bitflyer': 'bitFlyer',
+        'lbank': 'LBank',
     }
     
     TIMEFRAMES = {
@@ -62,20 +71,37 @@ class DataProvider:
     def _init_exchange(self):
         """Inicializa a conexão com a exchange usando CCXT"""
         try:
+            if not hasattr(ccxt, self.exchange_name):
+                raise ValueError(
+                    f"Exchange '{self.exchange_name}' não encontrada no CCXT. "
+                    f"IDs válidos incluem: {', '.join(sorted(DataProvider.SUPPORTED_EXCHANGES.keys()))}"
+                )
             exchange_class = getattr(ccxt, self.exchange_name)
-            
+
             config = {
                 'enableRateLimit': True,
                 'timeout': 30000,
+                'rateLimit': 200,
             }
-            
+
+            # Configurações específicas para Binance (spot estável, evita 429)
+            if self.exchange_name == 'binance':
+                config['options'] = {
+                    'defaultType': 'spot',
+                    'adjustForTimeDifference': True,
+                }
+                config['rateLimit'] = 100
+            elif self.exchange_name == 'binanceusdm':
+                config['options'] = {'defaultType': 'future'}
+                config['rateLimit'] = 100
+
             if self.api_key and self.api_secret:
                 config['apiKey'] = self.api_key
                 config['secret'] = self.api_secret
-            
+
             self.exchange = exchange_class(config)
             logger.info(f"Exchange {self.exchange_name} inicializada com sucesso")
-            
+
         except Exception as e:
             logger.error(f"Erro ao inicializar exchange {self.exchange_name}: {e}")
             raise

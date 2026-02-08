@@ -431,6 +431,22 @@ class MarketAnalyzerGUI(QMainWindow):
         coinbase_btn.clicked.connect(lambda: self.browser.setUrl(QUrl("https://www.coinbase.com")))
         quick_links_layout.addWidget(coinbase_btn)
         
+        kraken_btn = QPushButton("Kraken")
+        kraken_btn.clicked.connect(lambda: self.browser.setUrl(QUrl("https://www.kraken.com")))
+        quick_links_layout.addWidget(kraken_btn)
+        
+        bybit_btn = QPushButton("Bybit")
+        bybit_btn.clicked.connect(lambda: self.browser.setUrl(QUrl("https://www.bybit.com")))
+        quick_links_layout.addWidget(bybit_btn)
+        
+        okx_btn = QPushButton("OKX")
+        okx_btn.clicked.connect(lambda: self.browser.setUrl(QUrl("https://www.okx.com")))
+        quick_links_layout.addWidget(okx_btn)
+        
+        bitget_btn = QPushButton("Bitget")
+        bitget_btn.clicked.connect(lambda: self.browser.setUrl(QUrl("https://www.bitget.com")))
+        quick_links_layout.addWidget(bitget_btn)
+        
         quick_links_layout.addStretch()
         layout.addLayout(quick_links_layout)
         

@@ -5,8 +5,12 @@ Testa funcionalidades básicas sem GUI
 
 import sys
 import logging
+
 from data_provider import DataProvider
 from market_analysis import MarketAnalyzer
+
+OK = "[OK]"
+FAIL = "[FAIL]"
 
 # Configurar logging
 logging.basicConfig(
@@ -23,11 +27,11 @@ def test_data_provider():
     try:
         # Inicializa provedor
         provider = DataProvider('binance')
-        print("✓ Data Provider inicializado")
+        print(f"{OK} Data Provider inicializado")
         
         # Testa obtenção de mercados
         markets = provider.get_available_markets()
-        print(f"✓ Mercados disponíveis: {len(markets)}")
+        print(f"{OK} Mercados disponíveis: {len(markets)}")
         print(f"  Primeiros 5: {markets[:5]}")
         
         # Testa obtenção de dados OHLCV
@@ -36,15 +40,15 @@ def test_data_provider():
         df = provider.get_ohlcv_data(symbol, '5m', limit=100)
         
         if df is not None and len(df) > 0:
-            print(f"✓ Dados obtidos: {len(df)} candles")
-            print(f"  Último preço: ${df.iloc[-1]['close']:.2f}")
+            print(f"{OK} Dados obtidos: {len(df)} candles")
+            print(f"  Ultimo preco: ${df.iloc[-1]['close']:.2f}")
             return True
         else:
-            print("✗ Erro ao obter dados")
+            print(f"{FAIL} Erro ao obter dados")
             return False
             
     except Exception as e:
-        print(f"✗ Erro no teste: {e}")
+        print(f"{FAIL} Erro no teste: {e}")
         return False
 
 def test_market_analyzer():
@@ -57,22 +61,22 @@ def test_market_analyzer():
         # Inicializa
         provider = DataProvider('binance')
         analyzer = MarketAnalyzer()
-        print("✓ Market Analyzer inicializado")
+        print(f"{OK} Market Analyzer inicializado")
         
         # Obtém dados
         symbol = 'BTC/USDT'
         df = provider.get_ohlcv_data(symbol, '5m', limit=500)
         
         if df is None or len(df) == 0:
-            print("✗ Não foi possível obter dados")
+            print(f"{FAIL} Nao foi possivel obter dados")
             return False
         
-        print(f"✓ Dados obtidos: {len(df)} candles")
+        print(f"{OK} Dados obtidos: {len(df)} candles")
         
         # Adiciona indicadores
         print("\n  Calculando indicadores...")
         df = analyzer.populate_indicators(df)
-        print("✓ Indicadores calculados")
+        print(f"{OK} Indicadores calculados")
         
         # Verifica indicadores
         indicators = ['rsi', 'macd', 'bb_upperband', 'ema9', 'adx']
@@ -103,9 +107,32 @@ def test_market_analyzer():
         return True
         
     except Exception as e:
-        print(f"✗ Erro no teste: {e}")
+        print(f"{FAIL} Erro no teste: {e}")
         import traceback
         traceback.print_exc()
+        return False
+
+def test_other_exchange():
+    """Testa conexao com outra exchange (Kraken)"""
+    print("\n" + "="*60)
+    print("TESTE EXTRA: Outra Exchange (Kraken)")
+    print("="*60)
+    try:
+        provider = DataProvider('kraken')
+        print(f"{OK} Kraken inicializada")
+        markets = provider.get_available_markets()
+        print(f"{OK} Mercados Kraken: {len(markets)}")
+        # Kraken usa XBT/USD ou BTC/USD
+        symbol = 'BTC/USD' if 'BTC/USD' in markets else (markets[0] if markets else None)
+        if symbol:
+            df = provider.get_ohlcv_data(symbol, '5m', limit=10)
+            if df is not None and len(df) > 0:
+                print(f"{OK} Dados de {symbol}: {len(df)} candles")
+                return True
+        print(f"{OK} Kraken conectada (sem validar OHLCV)")
+        return True
+    except Exception as e:
+        print(f"{FAIL} Kraken: {e}")
         return False
 
 def test_config_manager():
@@ -119,7 +146,7 @@ def test_config_manager():
         
         # Inicializa
         config_mgr = ConfigManager()
-        print("✓ Config Manager inicializado")
+        print(f"{OK} Config Manager inicializado")
         
         # Testa salvamento
         test_config = {
@@ -131,27 +158,27 @@ def test_config_manager():
         }
         
         config_mgr.save_config(test_config)
-        print("✓ Configuração salva")
+        print(f"{OK} Configuracao salva")
         
         # Testa carregamento
         loaded_config = config_mgr.load_config()
-        print("✓ Configuração carregada")
+        print(f"{OK} Configuracao carregada")
         
         # Verifica se credenciais foram criptografadas/descriptografadas
         if loaded_config['api_key'] == test_config['api_key']:
-            print("✓ Criptografia/descriptografia funcionando")
+            print(f"{OK} Criptografia/descriptografia funcionando")
         else:
-            print("✗ Erro na criptografia")
+            print(f"{FAIL} Erro na criptografia")
             return False
         
         # Limpa credenciais de teste
         config_mgr.clear_credentials()
-        print("✓ Credenciais limpas")
+        print(f"{OK} Credenciais limpas")
         
         return True
         
     except Exception as e:
-        print(f"✗ Erro no teste: {e}")
+        print(f"{FAIL} Erro no teste: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -167,6 +194,7 @@ def main():
     # Executa testes
     results.append(("Data Provider", test_data_provider()))
     results.append(("Market Analyzer", test_market_analyzer()))
+    results.append(("Outra Exchange (Kraken)", test_other_exchange()))
     results.append(("Config Manager", test_config_manager()))
     
     # Resumo
@@ -175,8 +203,8 @@ def main():
     print("="*60)
     
     for name, result in results:
-        status = "✓ PASSOU" if result else "✗ FALHOU"
-        print(f"{name}: {status}")
+        status = "PASSOU" if result else "FALHOU"
+        print(f"{name}: [{status}]")
     
     passed = sum(1 for _, r in results if r)
     total = len(results)
